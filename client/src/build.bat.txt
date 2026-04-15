@@ -1,0 +1,13 @@
+@echo off
+echo Compilando L2RoseGuard DLL...
+
+:: Compilar con MinGW (debe estar instalado)
+g++ -shared -o guard.dll guard.cpp -l crypt32 -l ws2_32
+
+if %errorlevel% == 0 (
+    echo Compilacion exitosa: guard.dll
+) else (
+    echo Error en la compilacion
+)
+
+pause

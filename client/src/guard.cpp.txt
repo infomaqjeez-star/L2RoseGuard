@@ -1,0 +1,94 @@
+// L2RoseGuard - guard.cpp
+// DLL de protección para cliente Lineage 2
+// Se carga automáticamente al iniciar el juego
+
+#include <windows.h>
+#include <wincrypt.h>
+#include <stdio.h>
+#include <string.h>
+
+// Clave de encriptación (debe coincidir con el encriptador)
+#define ENCRYPTION_KEY "MiClaveSecreta2024"
+
+// Función para desencriptar AES
+BOOL DecryptFileInMemory(const char* inputFile, BYTE** outputData, DWORD* outputSize) {
+    HANDLE hFile = CreateFileA(inputFile, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile == INVALID_HANDLE_VALUE) {
+        MessageBoxA(NULL, "No se pudo abrir l2.ini.enc", "L2RoseGuard Error", MB_OK | MB_ICONERROR);
+        return FALSE;
+    }
+    
+    DWORD fileSize = GetFileSize(hFile, NULL);
+    BYTE* encryptedData = (BYTE*)malloc(fileSize);
+    DWORD bytesRead;
+    ReadFile(hFile, encryptedData, fileSize, &bytesRead, NULL);
+    CloseHandle(hFile);
+    
+    // Aquí iría la desencriptación AES
+    // Por ahora solo copiamos (simulación)
+    *outputData = (BYTE*)malloc(fileSize);
+    memcpy(*outputData, encryptedData, fileSize);
+    *outputSize = fileSize;
+    
+    free(encryptedData);
+    return TRUE;
+}
+
+// Hook para interceptar carga de l2.ini
+typedef HANDLE (WINAPI *pCreateFileA)(LPCSTR, DWORD, DWORD, LPSECURITY_ATTRIBUTES, DWORD, DWORD, HANDLE);
+pCreateFileA OriginalCreateFileA = NULL;
+
+HANDLE WINAPI HookedCreateFileA(LPCSTR lpFileName, DWORD dwDesiredAccess, DWORD dwShareMode, 
+    LPSECURITY_ATTRIBUTES lpSecurityAttributes, DWORD dwCreationDisposition, 
+    DWORD dwFlagsAndAttributes, HANDLE hTemplateFile) {
+    
+    // Si intenta leer l2.ini, redirigir a l2.ini.enc
+    if (strstr(lpFileName, "l2.ini") != NULL && strstr(lpFileName, ".enc") == NULL) {
+        char newPath[MAX_PATH];
+        strcpy(newPath, lpFileName);
+        strcat(newPath, ".enc");
+        
+        // Verificar si existe el archivo encriptado
+        HANDLE hTest = OriginalCreateFileA(newPath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (hTest != INVALID_HANDLE_VALUE) {
+            CloseHandle(hTest);
+            
+            // Crear archivo temporal desencriptado en memoria
+            // (En la versión final, desencriptaríamos aquí)
+            return OriginalCreateFileA(newPath, dwDesiredAccess, dwShareMode, 
+                lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile);
+        }
+    }
+    
+    return OriginalCreateFileA(lpFileName, dwDesiredAccess, dwShareMode, 
+        lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile);
+}
+
+// Instalar hook
+BOOL InstallHook() {
+    // Crear archivo de log
+    FILE* log = fopen("L2RoseGuard.log", "a");
+    if (log) {
+        fprintf(log, "[%lu] L2RoseGuard iniciado\n", GetTickCount());
+        fclose(log);
+    }
+    
+    // Mostrar mensaje de protección activa (solo para pruebas)
+    MessageBoxA(NULL, "L2RoseGuard - Protección activada", "L2RoseGuard", MB_OK | MB_ICONINFORMATION);
+    
+    return TRUE;
+}
+
+// Entry point de la DLL
+BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
+    switch (ul_reason_for_call) {
+        case DLL_PROCESS_ATTACH:
+            DisableThreadLibraryCalls(hModule);
+            InstallHook();
+            break;
+            
+        case DLL_PROCESS_DETACH:
+            break;
+    }
+    return TRUE;
+}
